@@ -1,8 +1,7 @@
 # ---------- BUILD STAGE ----------
-# DECISION: Updated to golang:1.26-alpine to match your go.mod requirement
 FROM golang:1.26-alpine AS builder
 
-# Install build-base and core dev libraries for CGO
+# Install essential build tools and libraries
 RUN apk add --no-cache \
     build-base \
     pkgconf \
@@ -11,20 +10,22 @@ RUN apk add --no-cache \
 
 WORKDIR /app
 
-# Cache dependencies
+# 1. Copy only dependency files first
 COPY go.mod go.sum ./
 RUN go mod download
 
-# Copy source
+# 2. Copy the rest of the source
 COPY . .
 
-# Build focusing on the specific main package path
-RUN CGO_ENABLED=1 GOOS=linux go build -o govd ./cmd/downbot/main.go
+# 3. Build with memory-efficient flags
+# -ldflags="-s -w" reduces binary size
+# We target the specific main.go file
+RUN CGO_ENABLED=1 GOOS=linux go build -ldflags="-s -w" -o govd ./cmd/downbot/main.go
 
 # ---------- RUNTIME STAGE ----------
 FROM alpine:3.21
 
-# Install core runtime libraries
+# Install runtime libraries
 RUN apk add --no-cache \
     libheif \
     libwebp \
@@ -32,8 +33,8 @@ RUN apk add --no-cache \
 
 WORKDIR /root/
 
-# Copy the binary from the builder stage
+# Copy only the compiled binary
 COPY --from=builder /app/govd .
 
-# Run the app
+# Run the application
 CMD ["./govd"]
