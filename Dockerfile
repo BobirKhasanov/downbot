@@ -16,8 +16,8 @@ RUN go mod download
 # Copy the entire source code
 COPY . .
 
-# DECISION: Target the specific directory containing your main package
-RUN CGO_ENABLED=1 GOOS=linux go build -ldflags="-s -w" -o govd ./cmd/downbot
+# DECISION: Find the main.go file and build it wherever it lives
+RUN CGO_ENABLED=1 GOOS=linux go build -ldflags="-s -w" -o govd $(find . -name "main.go" | head -n 1)
 
 # ---------- RUNTIME STAGE ----------
 FROM alpine:3.21
