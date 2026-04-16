@@ -1,7 +1,8 @@
 # ---------- BUILD STAGE ----------
-FROM golang:1.24-alpine AS builder
+# DECISION: Updated to golang:1.26-alpine to match your go.mod requirement
+FROM golang:1.26-alpine AS builder
 
-# Install build-base and core dev libraries
+# Install build-base and core dev libraries for CGO
 RUN apk add --no-cache \
     build-base \
     pkgconf \
@@ -17,15 +18,13 @@ RUN go mod download
 # Copy source
 COPY . .
 
-# Build the specific main package path
+# Build focusing on the specific main package path
 RUN CGO_ENABLED=1 GOOS=linux go build -o govd ./cmd/downbot/main.go
 
 # ---------- RUNTIME STAGE ----------
 FROM alpine:3.21
 
 # Install core runtime libraries
-# We add libheif and libwebp. 
-# Note: Basic decoding is included in libheif.
 RUN apk add --no-cache \
     libheif \
     libwebp \
