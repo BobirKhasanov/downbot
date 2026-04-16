@@ -24,7 +24,7 @@ RUN go mod download
 COPY . .
 
 # Build binary
-RUN go build -o govd ./cmd/govd
+RUN go build -o govd .
 
 # ---------- RUNTIME STAGE ----------
 FROM alpine:3.22 AS runtime
