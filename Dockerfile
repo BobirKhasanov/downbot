@@ -13,11 +13,11 @@ WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 
-# Copy the entire source
+# Copy the entire source code
 COPY . .
 
-# DECISION: We use "." so Go finds the main package wherever it is in /app
-RUN CGO_ENABLED=1 GOOS=linux go build -ldflags="-s -w" -o govd .
+# DECISION: Target the specific directory containing your main package
+RUN CGO_ENABLED=1 GOOS=linux go build -ldflags="-s -w" -o govd ./cmd/downbot
 
 # ---------- RUNTIME STAGE ----------
 FROM alpine:3.21
