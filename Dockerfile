@@ -1,50 +1,41 @@
-# ---------- BUILDER STAGE ----------
-FROM golang:1.26-alpine AS builder
+# ---------- BUILD STAGE ----------
+FROM golang:1.24-alpine AS builder
 
-ENV CGO_ENABLED=1
-ENV GOCACHE=/root/.cache/go-build
+# We need build-base (gcc, etc.) for CGO to work with image libraries
+RUN apk add --no-cache \
+    build-base \
+    pkgconf \
+    libheif-dev \
+    libwebp-dev \
+    libheif-plugins-all
 
 WORKDIR /app
 
-# Install build dependencies
-RUN --mount=type=cache,target=/var/cache/apk,sharing=locked \
-    --mount=type=cache,target=/var/lib/apk,sharing=locked \
-    apk add --no-cache \
-        --repository="https://dl-cdn.alpinelinux.org/alpine/edge/main" \
-        --repository="https://dl-cdn.alpinelinux.org/alpine/edge/community" \
-        build-base \
-        libheif-dev \
-        ffmpeg
-
-# Copy go mod files first (better caching)
+# Cache dependencies
 COPY go.mod go.sum ./
 RUN go mod download
 
-# Copy project files
+# Copy source
 COPY . .
 
-# Build binary
-RUN go build -o govd .
+# DECISION: We point to ./cmd/downbot/main.go and enable CGO
+RUN CGO_ENABLED=1 GOOS=linux go build -o govd ./cmd/downbot/main.go
 
 # ---------- RUNTIME STAGE ----------
-FROM alpine:3.22 AS runtime
+FROM alpine:3.21
 
-WORKDIR /app
+# IMPORTANT: The binary needs the shared libraries to run.
+# We install the runtime versions (not -dev) here.
+RUN apk add --no-cache \
+    libheif \
+    libwebp \
+    libheif-plugins-all \
+    ca-certificates
 
-# Install runtime dependencies (NO version locking)
-RUN --mount=type=cache,target=/var/cache/apk,sharing=locked \
-    --mount=type=cache,target=/var/lib/apk,sharing=locked \
-    apk add --no-cache \
-        --repository="https://dl-cdn.alpinelinux.org/alpine/edge/main" \
-        --repository="https://dl-cdn.alpinelinux.org/alpine/edge/community" \
-        ffmpeg \
-        libheif
+WORKDIR /root/
 
-# Copy built binary from builder
+# Copy the binary from the builder stage
 COPY --from=builder /app/govd .
 
-# Expose port (if needed)
-EXPOSE 8080
-
-# Run the bot
-ENTRYPOINT ["./govd"]
+# Run the app
+CMD ["./govd"]
