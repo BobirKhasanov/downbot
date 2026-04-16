@@ -9,27 +9,27 @@ RUN apk add --no-cache \
 
 WORKDIR /app
 
-# Copy dependency files
 COPY go.mod go.sum ./
 RUN go mod download
 
-# Copy the entire source code
 COPY . .
 
-# DECISION: Find the main.go file and build it wherever it lives
+# Build the binary
 RUN CGO_ENABLED=1 GOOS=linux go build -ldflags="-s -w" -o govd $(find . -name "main.go" | head -n 1)
 
 # ---------- RUNTIME STAGE ----------
 FROM alpine:3.21
 
+# DECISION: We must include ffmpeg here for the bot to process videos
 RUN apk add --no-cache \
     libheif \
     libwebp \
-    ca-certificates
+    ca-certificates \
+    ffmpeg
 
 WORKDIR /root/
 
-# Copy the binary from the builder stage
+# Copy the binary from the builder
 COPY --from=builder /app/govd .
 
 # Run the app
