@@ -1,46 +1,50 @@
+# ---------- BUILDER STAGE ----------
 FROM golang:1.26-alpine AS builder
 
+ENV CGO_ENABLED=1
 ENV GOCACHE=/root/.cache/go-build
 
+WORKDIR /app
+
+# Install build dependencies
 RUN --mount=type=cache,target=/var/cache/apk,sharing=locked \
     --mount=type=cache,target=/var/lib/apk,sharing=locked \
     apk add --no-cache \
         --repository="https://dl-cdn.alpinelinux.org/alpine/edge/main" \
         --repository="https://dl-cdn.alpinelinux.org/alpine/edge/community" \
-        "build-base=0.5-r4" \
-        "libheif-dev=1.21.2-r2"
+        build-base \
+        libheif-dev \
+        ffmpeg
 
-WORKDIR /app
-
-RUN --mount=type=cache,target=/go/pkg/mod \
-    go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.30.0
-
+# Copy go mod files first (better caching)
 COPY go.mod go.sum ./
+RUN go mod download
 
-RUN --mount=type=cache,target=/go/pkg/mod \
-    go mod download
-
+# Copy project files
 COPY . .
 
-RUN sqlc generate
+# Build binary
+RUN go build -o govd
 
-RUN --mount=type=cache,target="/root/.cache/go-build" \
-    CGO_ENABLED=1 go build \
-        -ldflags="-s -w" \
-        -o govd ./cmd/main.go
-
+# ---------- RUNTIME STAGE ----------
 FROM alpine:3.22 AS runtime
 
 WORKDIR /app
 
+# Install runtime dependencies (NO version locking)
 RUN --mount=type=cache,target=/var/cache/apk,sharing=locked \
     --mount=type=cache,target=/var/lib/apk,sharing=locked \
     apk add --no-cache \
         --repository="https://dl-cdn.alpinelinux.org/alpine/edge/main" \
         --repository="https://dl-cdn.alpinelinux.org/alpine/edge/community" \
-        "ffmpeg=8.0.1-r3" \
-        "libheif=1.21.2-r2"
+        ffmpeg \
+        libheif
 
-COPY --from=builder /app/govd ./govd
+# Copy built binary from builder
+COPY --from=builder /app/govd .
 
+# Expose port (if needed)
+EXPOSE 8080
+
+# Run the bot
 ENTRYPOINT ["./govd"]
