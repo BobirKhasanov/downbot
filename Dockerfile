@@ -1,16 +1,13 @@
 # ---------- BUILD STAGE ----------
 FROM golang:1.24-alpine AS builder
 
-# Install build dependencies
-# We replace libheif-plugins-all with specific working packages
-RUN apk add --no-cache \
+# We enable the community repo to ensure we find the heif plugins
+RUN apk add --no-cache --repository=https://dl-cdn.alpinelinux.org/alpine/v3.21/community \
     build-base \
     pkgconf \
     libheif-dev \
     libwebp-dev \
-    libheif-avif \
-    libheif-jpeg \
-    libheif-aom
+    libheif-plugins
 
 WORKDIR /app
 
@@ -21,20 +18,17 @@ RUN go mod download
 # Copy source
 COPY . .
 
-# Build focusing on the specific main package path
+# Build the specific main package
 RUN CGO_ENABLED=1 GOOS=linux go build -o govd ./cmd/downbot/main.go
 
 # ---------- RUNTIME STAGE ----------
 FROM alpine:3.21
 
-# Install runtime libraries
-# libheif-aom and libheif-avif are the standard for AVIF/HEIC in Alpine 3.21
-RUN apk add --no-cache \
+# Install runtime libraries from community repo
+RUN apk add --no-cache --repository=https://dl-cdn.alpinelinux.org/alpine/v3.21/community \
     libheif \
     libwebp \
-    libheif-avif \
-    libheif-jpeg \
-    libheif-aom \
+    libheif-plugins \
     ca-certificates
 
 WORKDIR /root/
