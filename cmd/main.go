@@ -20,21 +20,23 @@ func main() {
 	logger.Init()
 	defer logger.L.Sync()
 
-	// 1. FORCE THE DATABASE URL INTO THE SYSTEM ENV
-	// We set "DB_URL" because the govd internal database package 
-	// typically looks for this specific name.
+	// 1. Load initial config (this usually defaults to 'db')
+	config.Load()
+
+	// 2. HARD OVERRIDE: Force Render's DATABASE_URL into the config struct
+	// Based on internal/config/env.go, the field name is 'DB'
 	if renderDB := os.Getenv("DATABASE_URL"); renderDB != "" {
-		os.Setenv("DB_URL", renderDB)
+		config.Env.DB = renderDB
+		logger.L.Info("Database URL successfully overridden from environment")
 	}
 
-	config.Load()
 	logger.SetLevel(config.Env.LogLevel)
 
 	if !util.CheckFFmpeg() {
 		logger.L.Fatal("ffmpeg binary not found in PATH")
 	}
 
-	// 2. RENDER HEALTH CHECK SERVER
+	// 3. RENDER HEALTH CHECK SERVER
 	go func() {
 		port := os.Getenv("PORT")
 		if port == "" {
@@ -79,8 +81,9 @@ func main() {
 		}()
 	}
 
+	// 4. Initialize Subsystems
 	localization.Init()
-	database.Init()
+	database.Init() // This will now use the overridden config.Env.DB
 	util.CleanupDownloadsJob()
 
 	go bot.Start()
